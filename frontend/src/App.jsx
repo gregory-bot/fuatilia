@@ -1,167 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BadgeCheck, Bell, CalendarDays, Check, ChevronDown, CircleHelp, ClipboardList, Clock3, FileImage, HeartHandshake, Home, Languages, MapPin, Menu, MessageCircle, Phone, Plus, Search, ShieldCheck, Siren, Smartphone, Users, WalletCards, X } from 'lucide-react'
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Route, Routes } from 'react-router-dom'
+import Layout, { AppPage } from './components/Layout.jsx'
+import Home from './pages/Home.jsx'
+import Dashboard from './pages/Dashboard.jsx'
+import Register from './pages/Register.jsx'
+import PatientProfile from './pages/PatientProfile.jsx'
+import Worklist from './pages/Worklist.jsx'
+import UssdSimulator from './pages/UssdSimulator.jsx'
+import Pathology from './pages/Pathology.jsx'
+import Impact from './pages/Impact.jsx'
+import Journey from './pages/Journey.jsx'
 
-const API = 'http://localhost:8000/api'
-const copy = {
-  en: { dashboard: 'Clinic dashboard', register: 'Register screening', worklist: 'CHP worklist', ussd: 'USSD simulator', pathology: 'Pathology queue', impact: 'Our impact', search: 'Search name or county', newPatient: 'Register positive screen', completion: 'Treatment completion', patients: 'Women in care', followups: 'Lost to follow-up', vouchers: 'Transport support', overview: 'CARE OVERVIEW', tools: 'CARE TOOLS', privacy: 'Synthetic data only. Real deployment requires informed consent and compliance with Kenya’s Data Protection Act, 2019.' },
-  sw: { dashboard: 'Dashibodi ya kliniki', register: 'Sajili uchunguzi', worklist: 'Orodha ya wahudumu', ussd: 'Kifaa cha USSD', pathology: 'Foleni ya vipimo', impact: 'Matokeo yetu', search: 'Tafuta jina au kaunti', newPatient: 'Sajili matokeo chanya', completion: 'Matibabu yaliyokamilika', patients: 'Wanawake wanaopata huduma', followups: 'Waliopotea katika ufuatiliaji', vouchers: 'Msaada wa usafiri', overview: 'MUHTASARI WA HUDUMA', tools: 'ZANA ZA HUDUMA', privacy: 'Data ya kubuni pekee. Matumizi halisi yanahitaji ridhaa na kufuata Sheria ya Ulinzi wa Data ya Kenya, 2019.' }
-}
-const navGroups = [
-  { label: 'overview', items: [{ id: 'dashboard', icon: Home }, { id: 'register', icon: Plus }] },
-  { label: 'tools', items: [{ id: 'worklist', icon: Users }, { id: 'ussd', icon: Smartphone }, { id: 'pathology', icon: FileImage }, { id: 'impact', icon: Activity }] },
-]
-const statusLabels = ['Screened Positive', 'Navigating', 'Checked In', 'Treated', 'Rescreen Due', 'Lost to Follow-up']
-const money = new Intl.NumberFormat('en-KE')
-
-async function request(path, options = {}) {
-  const response = await fetch(`${API}${path}`, options)
-  if (!response.ok) throw new Error((await response.json()).detail || 'Request failed')
-  return response.json()
-}
-function initials(name = '') { return name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() }
-function RiskBadge({ band }) { return <span className={`risk-badge ${band || 'low'}`}><span />{band || 'low'} risk</span> }
-function StatusPill({ status }) { return <span className={`status-pill ${String(status).toLowerCase().replaceAll(' ', '-')}`}>{status}</span> }
-function MetricCard({ label, value, note, icon: Icon, tone = '' }) { return <article className={`metric-card ${tone}`}><div className="metric-top"><span>{label}</span><span className="metric-icon"><Icon size={17} /></span></div><strong>{value}</strong><small>{note}</small></article> }
-function toastMessage(setToast, message, error = false) { setToast({ message, error }); window.setTimeout(() => setToast(null), 4200) }
+const app = (el) => <AppPage>{el}</AppPage>
 
 export default function App() {
-  const [language, setLanguage] = useState('en')
-  const t = copy[language]
-  const [page, setPage] = useState('dashboard')
-  const [patients, setPatients] = useState([])
-  const [metrics, setMetrics] = useState(null)
-  const [selectedId, setSelectedId] = useState(null)
-  const [selected, setSelected] = useState(null)
-  const [riskFilter, setRiskFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [search, setSearch] = useState('')
-  const [toast, setToast] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [demoRunning, setDemoRunning] = useState(false)
-  const [mobileNav, setMobileNav] = useState(false)
-  const [chpRows, setChpRows] = useState([])
-  const [cases, setCases] = useState([])
-  const [impact, setImpact] = useState([])
-  const [ussdAction, setUssdAction] = useState('')
-
-  const refresh = useCallback(async () => {
-    try {
-      const [patientRows, stats, chp, pathology, impactRows] = await Promise.all([
-        request('/patients'), request('/metrics'), request('/chp/worklist'), request('/pathology'), request('/impact'),
-      ])
-      setPatients(patientRows); setMetrics(stats); setChpRows(chp); setCases(pathology); setImpact(impactRows)
-      if (selectedId) {
-        const latest = await request(`/patients/${selectedId}`)
-        setSelected(latest)
-      }
-    } catch (error) { toastMessage(setToast, `Cannot reach Fuatilia API: ${error.message}`, true) }
-  }, [selectedId])
-  useEffect(() => { refresh() }, [refresh])
-
-  const visiblePatients = useMemo(() => patients.filter((p) => (riskFilter === 'all' || p.risk_band === riskFilter) && (statusFilter === 'all' || p.status === statusFilter) && (!search || `${p.name} ${p.county}`.toLowerCase().includes(search.toLowerCase()))).slice(0, 35), [patients, riskFilter, statusFilter, search])
-  const goToProfile = async (id) => { setSelectedId(id); setPage('profile'); try { setSelected(await request(`/patients/${id}`)) } catch (error) { toastMessage(setToast, error.message, true) } }
-  const updatePatient = async (path, body = {}) => {
-    if (!selectedId) return
-    setBusy(true)
-    try { setSelected(await request(`/patients/${selectedId}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })); await refresh() }
-    catch (error) { toastMessage(setToast, error.message, true) }
-    finally { setBusy(false) }
-  }
-  const runDemo = async () => {
-    setBusy(true); setDemoRunning(true); setSelectedId(1); setPage('profile')
-    try {
-      const reset = await request('/demo/reset', { method: 'POST' }); setSelected(reset)
-      const steps = 4
-      for (let i = 0; i < steps; i += 1) {
-        const result = await request('/patients/1/demo-step', { method: 'POST' })
-        setSelected(result.patient)
-        toastMessage(setToast, result.detail)
-        await new Promise((resolve) => window.setTimeout(resolve, 750))
-      }
-      await refresh()
-      toastMessage(setToast, 'Amina’s care journey is complete — treatment recorded and rescreen scheduled.')
-    } catch (error) { toastMessage(setToast, error.message, true) }
-    finally { setBusy(false); setDemoRunning(false) }
-  }
-  const choosePage = (id) => { setPage(id); setSelectedId(null); setSelected(null); setMobileNav(false) }
-  const navLabel = (id) => t[id] || id
-
-  return <div className="app-shell">
-    <aside className={`sidebar ${mobileNav ? 'open' : ''}`}>
-      <div className="brand"><div className="brand-mark"><HeartHandshake size={22} strokeWidth={2.2} /></div><div><b>fuatilia</b><span>care, connected</span></div><button className="close-nav" onClick={() => setMobileNav(false)} aria-label="Close navigation"><X size={18} /></button></div>
-      <div className="county-switch"><span className="county-dot" /><span><b>Kenya pilot</b><small>Samburu · Baringo</small></span><ChevronDown size={15} /></div>
-      <nav>{navGroups.map((group) => <section className="nav-group" key={group.label}><p>{t[group.label]}</p>{group.items.map(({ id, icon: Icon }) => <button key={id} onClick={() => choosePage(id)} className={`nav-link ${page === id ? 'active' : ''}`}><Icon size={18} /><span>{navLabel(id)}</span>{id === 'worklist' && chpRows.length > 0 && <em>{chpRows.length}</em>}</button>)}</section>)}</nav>
-      <div className="sidebar-bottom"><div className="help-card"><div className="help-icon"><CircleHelp size={17} /></div><b>Care that follows through</b><span>One connected pathway, from positive screen to treatment.</span><button onClick={runDemo}>See Amina’s journey <ArrowRight size={14} /></button></div><div className="signed-in"><div className="avatar small">JM</div><div><b>Jane Mwangi</b><span>Clinic coordinator</span></div><button title="Account menu"><ChevronDown size={15} /></button></div></div>
-    </aside>
-    {mobileNav && <button className="nav-scrim" onClick={() => setMobileNav(false)} aria-label="Close menu" />}
-    <main className="main-area">
-      <header className="topbar"><button className="menu-button" onClick={() => setMobileNav(true)} aria-label="Open menu"><Menu size={21} /></button><div className="breadcrumb"><span>Fuatilia</span><span>/</span><b>{page === 'profile' ? 'Patient profile' : navLabel(page)}</b></div><div className="top-actions"><span className="live-dot"><i /> Demo environment</span><button className="language-toggle" onClick={() => setLanguage(language === 'en' ? 'sw' : 'en')}><Languages size={16} />{language === 'en' ? 'EN' : 'SW'}<ChevronDown size={14} /></button><button className="notification-button" aria-label="Notifications"><Bell size={18} /><i /></button><div className="avatar top-avatar">JM</div></div></header>
-      <div className="page-content">
-        {page === 'dashboard' && <Dashboard t={t} metrics={metrics} patients={visiblePatients} riskFilter={riskFilter} setRiskFilter={setRiskFilter} statusFilter={statusFilter} setStatusFilter={setStatusFilter} search={search} setSearch={setSearch} onPatient={goToProfile} onRegister={() => choosePage('register')} onDemo={runDemo} demoRunning={demoRunning} />}
-        {page === 'register' && <RegisterPage onCreated={(patient) => { setSelectedId(patient.id); setSelected(patient); setPage('profile'); refresh(); toastMessage(setToast, 'Positive screen saved. Risk support and first reminder activated.') }} />}
-        {page === 'profile' && <PatientProfile patient={selected} busy={busy} onUpdate={updatePatient} onBack={() => choosePage('dashboard')} onDemo={runDemo} demoRunning={demoRunning} />}
-        {page === 'worklist' && <Worklist rows={chpRows} onOpen={goToProfile} onVisited={async (id) => { try { await request(`/patients/${id}/chp-visited`, { method: 'POST' }); await refresh(); toastMessage(setToast, 'CHP visit marked complete.') } catch (error) { toastMessage(setToast, error.message, true) } }} />}
-        {page === 'ussd' && <UssdPage patients={patients} selectedId={selectedId} onSelect={async (id) => { setSelectedId(Number(id)); setSelected(await request(`/patients/${id}`)) }} patient={selected} action={ussdAction} setAction={setUssdAction} onSubmit={async () => { if (!selectedId || !ussdAction) return; await updatePatient('ussd', { action: ussdAction, language }); setUssdAction('') }} language={language} />}
-        {page === 'pathology' && <PathologyPage cases={cases} onRefresh={refresh} onToast={(message, error) => toastMessage(setToast, message, error)} />}
-        {page === 'impact' && <ImpactPage metrics={metrics} impact={impact} />}
-      </div>
-      <footer className="privacy-footer"><ShieldCheck size={15} /><span>{t.privacy}</span><span className="footer-separator">·</span><b>All integrations simulated</b></footer>
-    </main>
-    {toast && <div className={`toast ${toast.error ? 'error' : ''}`}><span className="toast-check">{toast.error ? <Siren size={16} /> : <Check size={16} />}</span>{toast.message}<button onClick={() => setToast(null)} aria-label="Dismiss"><X size={15} /></button></div>}
-  </div>
-}
-
-function Dashboard({ t, metrics, patients, riskFilter, setRiskFilter, statusFilter, setStatusFilter, search, setSearch, onPatient, onRegister, onDemo, demoRunning }) {
-  const spark = [{ value: 42 }, { value: 48 }, { value: 44 }, { value: 59 }, { value: 61 }, { value: 67 }, { value: 74 }]
-  return <>
-    <div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> CERVICAL CANCER CARE · KENYA</div><h1>{t.dashboard}</h1><p>Good morning, Jane. Here’s where every care journey stands.</p></div><div className="heading-actions"><button className="button button-quiet" onClick={onDemo} disabled={demoRunning}><Activity size={16} />{demoRunning ? 'Playing demo…' : 'Demo Amina’s journey'}</button><button className="button button-primary" onClick={onRegister}><Plus size={17} />{t.newPatient}</button></div></div>
-    <section className="hero-metrics"><article className="completion-hero"><div className="completion-copy"><div className="hero-kicker"><span>OUTCOME THAT MATTERS</span><span className="trend"><ArrowUpRight size={14} /> +12% this quarter</span></div><p>{t.completion}</p><div className="completion-value">{metrics?.completion_rate ?? '—'}<span>%</span></div><div className="hero-foot"><span>{metrics?.treated ?? 0} women completed treatment</span><span>of {metrics?.total ?? 0} screen-positive</span></div></div><div className="hero-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={spark}><defs><linearGradient id="fillMint" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#b7d9ce" stopOpacity={0.45} /><stop offset="100%" stopColor="#b7d9ce" stopOpacity={0} /></linearGradient></defs><Area type="monotone" dataKey="value" stroke="#d5ebe1" strokeWidth={2.5} fill="url(#fillMint)" /></AreaChart></ResponsiveContainer><span>Care completion trend</span></div><div className="hero-decoration">↗</div></article>
-      <MetricCard label={t.patients} value={metrics?.total ?? '—'} note="Across 7 counties" icon={Users} />
-      <MetricCard label={t.followups} value={metrics?.lost_to_follow_up ?? '—'} note="Outreach support needed" icon={ArrowDownRight} tone="metric-coral" />
-      <MetricCard label={t.vouchers} value={`KES ${money.format(metrics?.voucher_total_kes ?? 0)}`} note={`${metrics?.vouchers_paid ?? 0} journeys supported`} icon={WalletCards} tone="metric-mint" />
-    </section>
-    <section className="story-banner"><div className="story-art"><div className="sun-orb" /><div className="story-hill hill-one" /><div className="story-hill hill-two" /><div className="story-woman"><span>👩🏿</span><div className="story-phone"><Smartphone size={12} /></div></div><div className="route-dashes" /><MapPin className="story-pin" size={17} /></div><div className="story-copy"><span className="story-tag">A CARE JOURNEY, NOT A CASE NUMBER</span><h2>From Samburu to care,<br /><em>every step matters.</em></h2><p>Meet Amina. A positive screen is only the beginning. Fuatilia helps her get reminders, confirm by USSD, reach her clinic and complete treatment.</p><button className="text-button" onClick={onDemo}>Follow Amina’s journey <ArrowRight size={15} /></button></div><div className="story-steps"><span><i className="step-complete"><Check size={12} /></i> Screen positive</span><span><i><MessageCircle size={12} /></i> Swahili reminder</span><span><i><MapPin size={12} /></i> Clinic check-in</span><span><i><BadgeCheck size={12} /></i> Treatment</span></div></section>
-    <section className="table-card"><div className="table-header"><div><h2>Patient pathway</h2><p>Every positive screen, connected to the next step.</p></div><div className="table-controls"><label className="search-box"><Search size={16} /><input placeholder={t.search} value={search} onChange={(event) => setSearch(event.target.value)} /></label><select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)} aria-label="Filter by risk"><option value="all">All risk</option><option value="high">High risk</option><option value="medium">Medium risk</option><option value="low">Low risk</option></select><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter by status"><option value="all">All statuses</option>{statusLabels.map((s) => <option key={s}>{s}</option>)}</select></div></div>
-      <div className="table-scroll"><table><thead><tr><th>WOMAN</th><th>COUNTY / FACILITY</th><th>RISK</th><th>PATHWAY STATUS</th><th>NEXT APPOINTMENT</th><th /></tr></thead><tbody>{patients.map((p) => <tr key={p.id} onClick={() => onPatient(p.id)}><td><div className="person-cell"><div className={`avatar ${p.id === 1 ? 'avatar-hero' : ''}`}>{initials(p.name)}</div><div><b>{p.name}{p.id === 1 && <span className="demo-chip">DEMO</span>}</b><small>{p.age} years · {p.screening_result} positive</small></div></div></td><td><b>{p.county}</b><small>{p.facility}</small></td><td><RiskBadge band={p.risk_band} /></td><td><StatusPill status={p.status} /></td><td><span className="appointment"><CalendarDays size={14} />{p.appointment || 'Not set'}</span></td><td><button className="row-arrow" aria-label={`Open ${p.name}`}><ArrowRight size={16} /></button></td></tr>)}</tbody></table>{patients.length === 0 && <div className="empty-state">No patient records match these filters.</div>}</div><div className="table-foot"><span>Showing {patients.length} women · synthetic demo records</span><span>Updated just now <i className="tiny-live" /></span></div>
-    </section>
-  </>
-}
-
-function RegisterPage({ onCreated }) {
-  const [form, setForm] = useState({ name: '', age: 32, county: 'Samburu', distance_km: 42, phone_type: 'feature phone', missed_visits: 1, hiv_status: 'unknown', screening_result: 'VIA', language: 'sw' })
-  const [prediction, setPrediction] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }))
-  const submit = async (event) => { event.preventDefault(); setBusy(true); setError(''); try { onCreated(await request('/patients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, age: Number(form.age), distance_km: Number(form.distance_km), missed_visits: Number(form.missed_visits) }) })) } catch (err) { setError(err.message) } finally { setBusy(false) } }
-  return <><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> FIRST STEP, RIGHT SUPPORT</div><h1>Register screening</h1><p>A positive screen starts a supported care journey.</p></div><div className="synthetic-label"><ShieldCheck size={16} /> Synthetic data demo</div></div><div className="register-layout"><form className="form-card" onSubmit={submit}><div className="form-section-title"><span>01</span><div><h2>Woman’s details</h2><p>Use fictional details for this demo.</p></div></div><div className="form-grid"><label className="field full"><span>Name <i>*</i></span><input required value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="e.g. Amina N." /></label><label className="field"><span>Age</span><input type="number" min="18" max="100" value={form.age} onChange={(e) => update('age', e.target.value)} /></label><label className="field"><span>County</span><select value={form.county} onChange={(e) => update('county', e.target.value)}>{['Samburu', 'Baringo', 'Turkana', 'Laikipia', 'Nakuru', 'Nairobi', 'Kajiado'].map((county) => <option key={county}>{county}</option>)}</select></label><label className="field"><span>Distance to treatment (km)</span><input type="number" min="0" value={form.distance_km} onChange={(e) => update('distance_km', e.target.value)} /></label><label className="field"><span>Phone type</span><select value={form.phone_type} onChange={(e) => update('phone_type', e.target.value)}><option>feature phone</option><option>smartphone</option></select></label><label className="field"><span>Previously missed visits</span><input type="number" min="0" value={form.missed_visits} onChange={(e) => update('missed_visits', e.target.value)} /></label><label className="field"><span>HIV status <small>(optional)</small></span><select value={form.hiv_status} onChange={(e) => update('hiv_status', e.target.value)}><option value="unknown">Prefer not to say</option><option value="positive">Positive</option><option value="negative">Negative</option></select></label><label className="field"><span>Screening method</span><select value={form.screening_result} onChange={(e) => update('screening_result', e.target.value)}><option>VIA</option><option>HPV</option></select></label><label className="field"><span>Preferred language</span><select value={form.language} onChange={(e) => update('language', e.target.value)}><option value="sw">Kiswahili</option><option value="en">English</option></select></label><label className="field"><span>Appointment date</span><input type="date" /></label></div><div className="consent-note"><ShieldCheck size={17} /><span>In real care, ask permission before recording sensitive information or sending messages. This demo uses synthetic records only.</span></div>{error && <div className="form-error">{error}</div>}<button className="button button-primary form-submit" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save positive screen'}<ArrowRight size={16} /></button></form><aside className="prediction-card"><div className="prediction-icon"><Activity size={20} /></div><span className="eyebrow">SUPPORT, NOT A LABEL</span><h2>Risk score preview</h2><p>Capture the details to calculate a synthetic risk score and personalize first-step support.</p><div className="prediction-empty"><div className="prediction-lock"><ShieldCheck size={19} /></div><b>Score appears after registration</b><span>The model suggests navigation support. A care team makes every decision.</span></div><div className="prediction-foot"><i /> Logistic regression · trained on 500 synthetic records</div></aside></div></>
-}
-
-function PatientProfile({ patient, busy, onUpdate, onBack, onDemo, demoRunning }) {
-  if (!patient) return <div className="loading-card"><Activity className="spin" /> Loading patient journey…</div>
-  const progress = ['Screened Positive', 'Navigating', 'Checked In', 'Treated', 'Rescreen Due']
-  const stepIndex = Math.max(0, progress.indexOf(patient.status))
-  return <><div className="profile-back"><button className="text-button" onClick={onBack}>← All patients</button><span>Patient pathway / {patient.name}</span></div><div className="profile-heading"><div className="person-cell profile-person"><div className="avatar profile-avatar">{initials(patient.name)}</div><div><div className="eyebrow">SYNTHETIC PATIENT · #{String(patient.id).padStart(4, '0')}</div><h1>{patient.name}</h1><p>{patient.age} years · {patient.county} County · {patient.screening_result} positive</p></div></div><div className="profile-actions"><button className="button button-quiet" onClick={() => onUpdate('message', { language: patient.language || 'sw' })} disabled={busy}><MessageCircle size={16} />Send reminder</button><button className="button button-primary" onClick={() => onUpdate('status', { status: patient.status === 'Checked In' ? 'Treated' : 'Checked In' })} disabled={busy}><Check size={16} />{patient.status === 'Checked In' ? 'Mark treated' : 'Mark checked in'}</button></div></div><div className="profile-grid"><section className="profile-main"><div className="journey-card"><div className="section-heading"><div><span className="eyebrow">THE CARE JOURNEY</span><h2>One step at a time</h2></div><StatusPill status={patient.status} /></div><div className="journey-progress">{progress.map((step, index) => <div key={step} className={`journey-step ${index <= stepIndex ? 'done' : ''} ${index === stepIndex ? 'current' : ''}`}><div className="journey-node">{index < stepIndex ? <Check size={13} /> : index + 1}</div><span>{step === 'Rescreen Due' ? 'Rescreen due' : step}</span></div>)}</div><div className="timeline">{(patient.events || []).map((event, index) => <div className="timeline-row" key={`${event.label}-${index}`}><div className={`timeline-dot ${event.label.includes('Lost') ? 'dot-coral' : ''}`} /><div className="timeline-content"><div><b>{event.label}</b><time>{new Date(event.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</time></div><p>{event.detail}</p></div></div>)}</div></div>
-      <div className="message-card"><div className="section-heading"><div><span className="eyebrow">MESSAGES & CHECK-INS</span><h2>Communication history</h2></div><MessageCircle size={18} /></div>{patient.messages?.length ? patient.messages.slice().reverse().map((message, index) => <div className="message-entry" key={index}><div className="message-icon"><MessageCircle size={16} /></div><div><div className="message-meta"><b>{message.channel} · {message.language === 'sw' ? 'Kiswahili' : 'English'}</b><span>{new Date(message.created_at).toLocaleDateString()}</span></div><p>{message.body}</p></div></div>) : <div className="empty-inline">No messages yet. Send a gentle reminder when she’s ready.</div>}</div></section>
-    <aside className="profile-side"><div className={`risk-detail ${patient.risk_band}`}><div className="risk-detail-top"><span>FOLLOW-UP SUPPORT</span><RiskBadge band={patient.risk_band} /></div><div className="risk-score-number">{patient.risk_score}<small>/100</small></div><div className="risk-meter"><i style={{ width: `${patient.risk_score}%` }} /></div><h3>Why extra support?</h3><ul>{patient.risk_reasons?.map((reason) => <li key={reason}><span><ArrowUpRight size={12} /></span>{reason}</li>)}</ul><p className="model-disclaimer">Decision support only · not a diagnosis</p></div><div className="visit-card"><div className="visit-top"><div className="visit-icon"><MapPin size={17} /></div><div><b>Next care visit</b><span>{patient.appointment || 'Appointment to be set'}</span></div></div><div className="facility-name">{patient.facility}</div><div className="distance-line"><MapPin size={14} /> {patient.distance_km} km away <span>·</span> {patient.phone_type}</div><div className="visit-separator" /><div className="chp-person"><div className="avatar chp-avatar">{initials(patient.chp || 'CHP')}</div><div><small>COMMUNITY HEALTH PROMOTER</small><b>{patient.chp || 'Assignment pending'}</b></div><span className="assigned-pill">{patient.chp ? 'Assigned' : 'Pending'}</span></div></div><div className="voucher-card"><div className="voucher-icon"><WalletCards size={18} /></div><div><b>Travel support</b><span>{patient.voucher ? `KES ${money.format(patient.voucher.amount_kes)} · ${patient.voucher.status}` : 'Voucher releases after check-in'}</span>{patient.voucher && <small className="transaction-id">{patient.voucher.transaction_id}</small>}</div>{patient.voucher && <BadgeCheck size={18} className="voucher-check" />}</div><button className="button button-quiet demo-full" onClick={onDemo} disabled={demoRunning}><Activity size={16} />{demoRunning ? 'Journey in progress…' : 'Run end-to-end demo'}</button></aside></div></>
-}
-
-function Worklist({ rows, onOpen, onVisited }) {
-  return <><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> COMMUNITY CARE · FIELD TEAM</div><h1>CHP worklist</h1><p>High-risk women who could use a personal check-in.</p></div><div className="worklist-count"><Users size={17} /> {rows.length} visits to coordinate</div></div><div className="worklist-intro"><div className="worklist-icon"><HeartHandshake size={21} /></div><div><b>Care continues beyond the clinic.</b><p>Community health promoters can help women plan travel, understand next steps and feel supported. Only assigned synthetic cases appear here.</p></div></div><div className="worklist-grid">{rows.slice(0, 24).map((patient) => <article className="work-card" key={patient.id}><div className="work-card-top"><div className="person-cell"><div className="avatar">{initials(patient.name)}</div><div><b>{patient.name}</b><small>{patient.age} years · {patient.county}</small></div></div><RiskBadge band={patient.risk_band} /></div><div className="work-reason"><Siren size={15} /><span>{patient.risk_reasons?.[0] || 'Additional follow-up support'}</span></div><div className="work-meta"><span><MapPin size={14} />{patient.distance_km} km to facility</span><span><Phone size={14} />{patient.phone_type}</span></div><div className="work-assignee"><span>Assigned to</span><b>{patient.chp || 'Community team'}</b></div><div className="work-card-actions"><button className="button button-quiet" onClick={() => onOpen(patient.id)}>View journey</button><button className="button button-primary" onClick={() => onVisited(patient.id)}><Check size={15} />Visited</button></div></article>)}</div>{rows.length === 0 && <div className="empty-state">All assigned follow-ups are up to date. Nice work.</div>}</>
-}
-
-function UssdPage({ patients, selectedId, onSelect, patient, action, setAction, onSubmit, language }) {
-  const [screenText, setScreenText] = useState('')
-  return <><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> EVERY PHONE CAN CONNECT</div><h1>USSD appointment check-in</h1><p>A feature-phone flow that works without data or a smartphone.</p></div><span className="ussd-code"><Smartphone size={16} /> *384#</span></div><div className="ussd-layout"><section className="ussd-info"><div className="ussd-info-icon"><Smartphone size={22} /></div><span className="eyebrow">FEATURE-PHONE FRIENDLY</span><h2>Care access,<br /><em>one short code away.</em></h2><p>Simulate how a woman can confirm or reschedule from any mobile phone, even with no internet connection.</p><label className="field"><span>Select a synthetic patient</span><select value={selectedId || ''} onChange={(e) => onSelect(e.target.value)}><option value="">Choose a patient</option>{patients.slice(0, 70).map((p) => <option key={p.id} value={p.id}>{p.name} · {p.county}</option>)}</select></label><div className="ussd-flow"><span><i>1</i> Dial *384#</span><ArrowRight size={15} /><span><i>2</i> Confirm or reschedule</span><ArrowRight size={15} /><span><i>3</i> Get a reply</span></div><div className="ussd-note"><ShieldCheck size={16} />USSD interaction is simulated. Africa’s Talking integration is sandbox-only.</div></section><section className="phone-stage"><div className="stage-halo" /><div className="feature-phone"><div className="phone-speaker" /><div className="phone-screen"><div className="phone-status"><span>Safaricom</span><span>●●● 4G</span></div><div className="phone-app-name">Fuatilia huduma</div>{!patient ? <div className="phone-message"><b>Karibu / Welcome</b><p>Chagua mgonjwa kuanza<br />Select a patient to begin.</p></div> : <div className="phone-message"><b>{screenText ? 'Jibu / Reply' : 'Miadi yako / Appointment'}</b><p>{screenText || (language === 'sw' ? `Habari ${patient.name.split(' ')[0]}! Miadi yako ni ${patient.appointment || 'imepangwa'}.` : `Hello ${patient.name.split(' ')[0]}! Your appointment is ${patient.appointment || 'scheduled'}.`)}</p>{!screenText && <><p>1. Thibitisha / Confirm</p><p>2. Badilisha / Reschedule</p></>}</div>}<div className="phone-input">{action || 'Andika hapa / Type here'}<span>▌</span></div><div className="phone-softkeys"><span>Cancel</span><span>Select</span></div></div><div className="phone-keypad">{['1','2','3','4','5','6','7','8','9','*','0','#'].map((n) => <button key={n} onClick={() => setAction(`${action}${n}`)}>{n}</button>)}</div><div className="phone-nav-keys"><span>◀</span><div>OK</div><span>▶</span></div></div><div className="ussd-actions"><button className="button button-quiet" onClick={() => { setAction('1'); setScreenText('') }} disabled={!patient}>1 · {language === 'sw' ? 'Thibitisha' : 'Confirm'}</button><button className="button button-primary" onClick={async () => { await onSubmit(); setScreenText(language === 'sw' ? 'Asante! Umehakikisha miadi yako.' : 'Thank you! Your appointment is confirmed.') }} disabled={!patient || !action}>Send response <ArrowRight size={15} /></button><button className="ussd-reschedule" onClick={() => { setAction('2'); setScreenText('') }} disabled={!patient}>2 · Reschedule</button></div></section></div></>
-}
-
-function PathologyPage({ cases, onRefresh, onToast }) {
-  const upload = async (event) => { const file = event.target.files?.[0]; if (!file) return; const body = new FormData(); body.append('file', file); try { const result = await request('/pathology', { method: 'POST', body }); onToast(`${result.filename} added to triage queue. ${result.note}`); await onRefresh() } catch (error) { onToast(error.message, true) } event.target.value = '' }
-  const review = async (id, status) => { try { await request(`/pathology/${id}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }); await onRefresh(); onToast('Pathologist review recorded.') } catch (error) { onToast(error.message, true) } }
-  return <><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> PATHOLOGY · HUMAN-IN-THE-LOOP</div><h1>Pathology triage</h1><p>Help scarce specialist time reach the most urgent slides sooner.</p></div><label className="button button-primary upload-button"><Plus size={17} />Upload slide image<input type="file" accept="image/*" onChange={upload} /></label></div><div className="clinical-warning"><Siren size={18} /><div><b>AI suggestion — pathologist must confirm.</b><span>This mock queue only demonstrates urgency sorting. It does not interpret real tissue or make a diagnosis.</span></div></div><div className="pathology-layout"><div className="pathology-list"><div className="section-heading"><div><h2>Urgency queue</h2><p>Highest urgency surfaced first · {cases.length} slides</p></div><select defaultValue="all" aria-label="Filter pathology cases"><option value="all">All slides</option><option>Awaiting review</option></select></div>{cases.length === 0 ? <div className="empty-state">No slides yet. Upload a synthetic image to test the queue.</div> : cases.map((item, index) => <article className="slide-row" key={item.id}><div className="slide-rank">{String(index + 1).padStart(2, '0')}</div><div className="slide-thumb"><FileImage size={20} /></div><div className="slide-info"><b>{item.filename}</b><span>Received {new Date(item.created_at).toLocaleDateString()} · synthetic upload</span><StatusPill status={item.status} /></div><div className="urgency"><span>URGENCY</span><b>{item.urgency}</b><div><i style={{ width: `${item.urgency}%` }} /></div></div><div className="slide-actions"><button className="button button-quiet" onClick={() => review(item.id, 'Needs review')}>Needs review</button><button className="button button-primary" onClick={() => review(item.id, 'Confirmed')}>Confirm</button></div></article>)}</div><aside className="pathology-side"><div className="pathology-side-icon"><Activity size={19} /></div><span className="eyebrow">HUMAN-IN-THE-LOOP</span><h3>Assist the pathologist.<br /><em>Never replace them.</em></h3><p>Smartphone microscope images can be queued by urgency. A qualified remote pathologist reviews and confirms every case.</p><div className="triage-mini"><div><span>01</span><b>Capture slide image</b></div><div><span>02</span><b>Mock urgency sort</b></div><div><span>03</span><b>Pathologist confirms</b></div></div><div className="side-disclaimer"><ShieldCheck size={15} />No AI diagnosis in this MVP</div></aside></div></>
-}
-
-function ImpactPage({ metrics, impact }) {
-  return <><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot" /> MEASURE WHAT MATTERS</div><h1>Impact, made visible</h1><p>A single outcome to keep the whole team focused: treatment completed.</p></div><span className="synthetic-label"><Activity size={16} />Simulated comparison</span></div><section className="impact-hero"><div><span className="eyebrow">THE NORTH STAR</span><h2>Every woman who screens positive<br /><em>gets a path to treatment.</em></h2><p>Fuatilia joins risk-led navigation, community support, mobile reminders and transport assistance in one measurable pathway.</p></div><div className="impact-stat"><span>DEMO COMPLETION RATE</span><b>{metrics?.completion_rate ?? '—'}<small>%</small></b><small>of screen-positive women</small></div></section><div className="impact-grid"><section className="chart-card"><div className="section-heading"><div><h2>Completion rate comparison</h2><p>Illustrative before / with Fuatilia view</p></div><span className="simulated-chip">SYNTHETIC</span></div><div className="impact-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={impact}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8e9e3" /><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#78817c', fontSize: 12 }} /><YAxis domain={[0, 100]} unit="%" axisLine={false} tickLine={false} tick={{ fill: '#78817c', fontSize: 11 }} /><Tooltip formatter={(value) => [`${value}%`, 'Treatment completion']} /><Area type="monotone" dataKey="completion" stroke="#1C7C7D" fill="#d9ebe5" strokeWidth={3} /></AreaChart></ResponsiveContainer></div><div className="chart-caption"><span><i className="legend-dot" />Completion</span><span>Illustrative baseline; not clinical evidence</span></div></section><aside className="impact-breakdown"><h2>What the system tracks</h2><p>Operational signals that help care teams close the follow-up gap.</p><div><span><Users size={16} />Screen-positive women</span><b>{metrics?.total ?? 0}</b></div><div><span><BadgeCheck size={16} />Treatment completed</span><b>{metrics?.treated ?? 0}</b></div><div><span><Clock3 size={16} />Avg. days to treatment</span><b>{metrics?.average_days_to_treatment ?? 0}<small> days</small></b></div><div><span><ArrowDownRight size={16} />Lost to follow-up</span><b>{metrics?.lost_to_follow_up ?? 0}</b></div><div><span><WalletCards size={16} />Vouchers released</span><b>{metrics?.vouchers_paid ?? 0}</b></div></aside></div><div className="impact-note"><ShieldCheck size={17} /><span><b>Honest about the evidence:</b> the comparison is synthetic and for demonstration only. A real program would establish a baseline and evaluate treatment completion prospectively.</span></div></>
+  return (
+    <Layout>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/dashboard" element={app(<Dashboard />)} />
+        <Route path="/register" element={app(<Register />)} />
+        <Route path="/patients/:id" element={app(<PatientProfile />)} />
+        <Route path="/chp" element={app(<Worklist />)} />
+        <Route path="/ussd" element={app(<UssdSimulator />)} />
+        <Route path="/pathology" element={app(<Pathology />)} />
+        <Route path="/impact" element={app(<Impact />)} />
+        <Route path="/journey" element={app(<Journey />)} />
+        <Route path="*" element={<Home />} />
+      </Routes>
+    </Layout>
+  )
 }
