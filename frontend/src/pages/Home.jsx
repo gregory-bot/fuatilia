@@ -5,18 +5,17 @@ import { api } from '../lib/api.js'
 import { kes } from '../lib/format.js'
 import { useI18n } from '../lib/i18n.jsx'
 import Film from '../components/film/Film.jsx'
+import DialingPhone from '../components/DialingPhone.jsx'
 
 const SLIDE_MS = 12000
 
 // Landing-page copy. Kept here (not in i18n.jsx) because it is long-form and page-specific.
 const COPY = {
   en: {
-    eyebrow: 'Cervical cancer care · Kenya',
-    title: 'Every woman who is screened deserves to be treated.',
-    sub: 'Across Kenya, women who screen positive for cervical cancer are lost before they ever reach treatment, because of distance, cost and missed messages. Fuatilia walks beside each of them, from the first positive result to the day she is treated.',
+    title: 'Screened is not enough. Every woman deserves treatment.',
+    sub: 'We make sure women who screen positive for cervical cancer in Kenya reach treatment.',
     ctaFilm: "Watch Amina's story",
     ctaPlatform: 'Explore the platform',
-    slides: ['Screening day at a community clinic', 'Every mother deserves to come home well'],
     stats: [
       ['31.5%', 'of women lost to follow-up after screening in one western Kenya programme'],
       ['49.3%', 'lost between biopsy and LEEP treatment in the same programme'],
@@ -72,12 +71,10 @@ const COPY = {
     ctaSub: 'Partner with us to bring Fuatilia to more counties.',
   },
   sw: {
-    eyebrow: 'Huduma ya saratani ya mlango wa kizazi · Kenya',
-    title: 'Kila mwanamke aliyepimwa anastahili kutibiwa.',
-    sub: 'Kote Kenya, wanawake wenye kipimo chanya cha saratani ya mlango wa kizazi hupotea kabla ya kufikia matibabu, kwa sababu ya umbali, gharama na jumbe zilizokosekana. Fuatilia inatembea pamoja na kila mmoja wao, kutoka matokeo chanya ya kwanza hadi siku anapotibiwa.',
+    title: 'Kupimwa hakutoshi. Kila mwanamke anastahili matibabu.',
+    sub: 'Tunahakikisha wanawake wenye kipimo chanya cha saratani ya mlango wa kizazi nchini Kenya wanafikia matibabu.',
     ctaFilm: 'Tazama hadithi ya Amina',
     ctaPlatform: 'Gundua jukwaa',
-    slides: ['Siku ya uchunguzi katika kliniki ya jamii', 'Kila mama anastahili kurudi nyumbani akiwa mzima'],
     stats: [
       ['31.5%', 'ya wanawake walipotea baada ya uchunguzi katika mpango mmoja wa magharibi mwa Kenya'],
       ['49.3%', 'walipotea kati ya biopsy na matibabu ya LEEP katika mpango huo huo'],
@@ -139,47 +136,41 @@ const HERO_SLIDES = [
   { src: '/media/hero-mother-baby.jpg', pos: 'center 22%', flip: true },
 ]
 
+const FADE_MS = 2600
+
 function Hero({ c }) {
   const [slide, setSlide] = useState(0)
+  const [prev, setPrev] = useState(null) // the slide fading out keeps moving, so nothing jumps
   useEffect(() => {
-    const id = setInterval(() => setSlide((s) => (s + 1) % HERO_SLIDES.length), SLIDE_MS)
-    return () => clearInterval(id)
+    const id = setTimeout(() => { setPrev(slide); setSlide((s) => (s + 1) % HERO_SLIDES.length) }, SLIDE_MS)
+    return () => clearTimeout(id)
   }, [slide])
+  useEffect(() => {
+    if (prev === null) return undefined
+    const id = setTimeout(() => setPrev(null), FADE_MS + 200)
+    return () => clearTimeout(id)
+  }, [prev])
 
   return (
-    <section className="px-3 pt-3 sm:px-4">
-      <div className="relative mx-auto min-h-[640px] max-w-[1600px] overflow-hidden rounded-[28px] bg-deep sm:min-h-[min(78vh,820px)]">
-        {HERO_SLIDES.map((s, i) => (
-          // Photos are mirrored so each woman sits on the right, clear of the headline.
-          <div key={s.src} className={`absolute inset-0 transition-opacity duration-[1500ms] ${i === slide ? 'opacity-100' : 'opacity-0'} ${s.flip ? '-scale-x-100' : ''}`}>
-            <img src={s.src} alt={c.slides[i]} loading={i === 0 ? 'eager' : 'lazy'}
-              className={`h-full w-full object-cover ${i === slide ? 'kenburns' : ''}`}
-              style={{ objectPosition: s.pos, '--kb-from': 1.02, '--kb-to': 1.1, '--kb-dur': `${SLIDE_MS / 1000 + 2}s` }} />
-          </div>
-        ))}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#08262A]/90 via-[#08262A]/60 to-[#08262A]/10" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#08262A]/70 via-transparent to-transparent" />
+    <section className="relative h-[100svh] max-h-[1000px] min-h-[560px] w-full overflow-hidden bg-deep">
+      {HERO_SLIDES.map((s, i) => (
+        // Photos are mirrored so each woman sits on the right, clear of the headline.
+        <div key={s.src} className={`absolute inset-0 ${s.flip ? '-scale-x-100' : ''}`}
+          style={{ opacity: i === slide ? 1 : 0, transition: `opacity ${FADE_MS}ms cubic-bezier(.45,0,.25,1)`, zIndex: i === slide ? 1 : 0 }}>
+          <img src={s.src} alt="" loading={i === 0 ? 'eager' : 'lazy'}
+            className={`h-full w-full object-cover ${i === slide || i === prev ? 'kenburns' : ''}`}
+            style={{ objectPosition: s.pos, '--kb-from': 1.0, '--kb-to': 1.08, '--kb-dur': `${(SLIDE_MS + FADE_MS) / 1000}s`, animationTimingFunction: 'linear' }} />
+        </div>
+      ))}
+      <div className="absolute inset-0 z-[2] bg-gradient-to-r from-[#08262A]/85 via-[#08262A]/45 to-transparent" />
+      <div className="absolute inset-0 z-[2] bg-gradient-to-t from-[#08262A]/70 via-transparent to-transparent" />
 
-        <div className="relative flex min-h-[640px] flex-col justify-end px-6 pb-10 pt-24 sm:min-h-[min(78vh,820px)] sm:px-12 sm:pb-14 lg:px-16">
-          <div className="max-w-2xl">
-            <p className="eyebrow text-[#F4A48F]">{c.eyebrow}</p>
-            <h1 className="fade-up mt-4 text-4xl font-bold leading-[1.05] text-white sm:text-6xl">{c.title}</h1>
-            <p className="mt-5 max-w-xl text-base leading-relaxed text-white/85 sm:text-lg">{c.sub}</p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <a href="#film" className="btn-coral px-6 py-3 text-base"><PlayCircle size={20} />{c.ctaFilm}</a>
-              <Link to="/dashboard" className="btn-light px-6 py-3 text-base">{c.ctaPlatform}<ArrowRight size={18} /></Link>
-            </div>
-          </div>
-          <div className="mt-10 flex items-center gap-4">
-            {HERO_SLIDES.map((s, i) => (
-              <button key={s.src} onClick={() => setSlide(i)} className="group flex items-center gap-2 text-left" aria-label={c.slides[i]}>
-                <span className="relative block h-1 w-14 overflow-hidden rounded-full bg-white/30">
-                  {i === slide && <span key={slide} className="absolute inset-0 origin-left bg-white" style={{ animation: `progress ${SLIDE_MS}ms linear forwards` }} />}
-                </span>
-                <span className={`hidden text-xs sm:block ${i === slide ? 'text-white' : 'text-white/50 group-hover:text-white/80'}`}>{c.slides[i]}</span>
-              </button>
-            ))}
-          </div>
+      <div className="container-page relative z-[3] flex h-full flex-col justify-end pb-16 sm:pb-24">
+        <h1 className="fade-up max-w-5xl text-5xl font-extrabold leading-[1.02] tracking-tight text-white sm:text-6xl lg:text-7xl">{c.title}</h1>
+        <p className="mt-6 max-w-xl text-lg text-white/90 sm:text-xl">{c.sub}</p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <a href="#film" className="btn-coral px-6 py-3 text-base"><PlayCircle size={20} />{c.ctaFilm}</a>
+          <Link to="/dashboard" className="btn-light px-6 py-3 text-base">{c.ctaPlatform}<ArrowRight size={18} /></Link>
         </div>
       </div>
     </section>
@@ -234,7 +225,7 @@ export default function Home() {
       <Hero c={c} />
 
       {/* Numbers */}
-      <section className="container-page -mt-px pt-10">
+      <section className="container-page pt-14">
         <div className="grid border-l border-t border-line sm:grid-cols-2 lg:grid-cols-4">
           {c.stats.map(([n, label]) => (
             <div key={n} className="border-b border-r border-line bg-white p-6">
@@ -285,8 +276,13 @@ export default function Home() {
             })}
           </div>
 
-          <div className="mt-20 grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-            <img src="/media/feature-phone.jpg" alt="A hand holding a basic feature phone" loading="lazy" className="aspect-[4/3] w-full rounded-[28px] object-cover" />
+          <div id="how" className="mt-20 grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+            <div className="relative flex min-h-[560px] items-center justify-center overflow-hidden rounded-[28px] bg-deep py-10">
+              <img src="/media/amina.jpg" alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-xl" />
+              <div className="absolute inset-0 bg-gradient-to-t from-deep via-deep/30 to-transparent" />
+              <div className="relative lg:scale-110"><DialingPhone loop /></div>
+              <p className="absolute bottom-5 left-0 right-0 text-center text-sm font-medium text-white/90">{lang === 'sw' ? 'Anapiga *384*12# na kuthibitisha miadi yake' : 'She dials *384*12# and confirms her visit'}</p>
+            </div>
             <div>
               <h3 className="text-2xl font-bold">{c.stepsTitle}</h3>
               <ol className="mt-6 grid gap-px border border-line bg-line sm:grid-cols-2">

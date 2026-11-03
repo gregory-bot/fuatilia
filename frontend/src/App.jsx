@@ -1,4 +1,5 @@
-import { Route, Routes } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import Layout, { AppPage } from './components/Layout.jsx'
 import Home from './pages/Home.jsx'
 import Dashboard from './pages/Dashboard.jsx'
@@ -9,10 +10,23 @@ import UssdSimulator from './pages/UssdSimulator.jsx'
 import Pathology from './pages/Pathology.jsx'
 import Impact from './pages/Impact.jsx'
 import Journey from './pages/Journey.jsx'
+import Film from './components/film/Film.jsx'
+import { useI18n } from './lib/i18n.jsx'
 
 const app = (el) => <AppPage>{el}</AppPage>
 
+/** Bare full-frame film used by scripts/render-film to export the MP4 (not linked in the UI). */
+function FilmRender() {
+  const [params] = useSearchParams()
+  const { setLang } = useI18n()
+  const lang = params.get('lang') === 'sw' ? 'sw' : 'en'
+  useEffect(() => setLang(lang), [lang, setLang])
+  return <Film renderMode autoplay={params.get('go') === '1'} />
+}
+
 export default function App() {
+  const location = useLocation()
+  if (location.pathname === '/film-render') return <FilmRender />
   return (
     <Layout>
       <Routes>

@@ -54,7 +54,7 @@ To try it on a phone, connect to the same Wi-Fi and open `http://<your-laptop-ip
 
 **Demo mode** plays a narrated photo film of about two minutes, also embedded on the home page. It follows Amina, 34, from Lodung'okwe in Samburu County. Her nearest treatment hospital is 68 km away in Maralal.
 
-- **Real photographs**, with slow camera moves and crossfades. No cartoons.
+- **Real photographs**, with slow camera moves and crossfades. No cartoons. The SMS and USSD scenes use the Safaricom handset mock-up, which dials `*384*12#` key by key. The matatu scene cuts from Amina at the bus window to the matatu on the highway.
 - **Narration** uses the browser's speech engine. In **Microsoft Edge** it picks Kenyan neural voices: *Asilia* (English, Kenya) or *Zuri* (Kiswahili, Kenya). Other browsers fall back to the closest English voice. Subtitles follow the narrator sentence by sentence.
 - **Background music** is a soft corporate-style loop generated live in the browser, so it is licence-free. It dips under the narration. To use a real track instead, place a royalty-free MP3 you have rights to at `frontend/public/media/music.mp3`; it is detected automatically.
 - **Live system:** the phone screens (SMS, USSD and M-Pesa) come from the real API. If the API is offline, built-in demo data keeps the film playing.
@@ -72,6 +72,22 @@ To try it on a phone, connect to the same Wi-Fi and open `http://<your-laptop-ip
 | 9 | Closing line | — |
 
 Controls: play/pause, scene skip, and toggles for music, narration and subtitles, plus fullscreen. Keyboard: **Space**, **← →** and **F**. **To make an MP4** for a pitch deck, open the film in Edge, go fullscreen and record the screen with system audio (on macOS, ⌘⇧5 records video only; use QuickTime with an audio loopback device such as BlackHole, or OBS). Switch the site to **SW** for Kiswahili narration and subtitles.
+
+### Export the film as an MP4
+
+With the app running (`make dev`) and ffmpeg installed (`brew install ffmpeg`), run:
+
+```bash
+make video            # → video/fuatilia-aminas-journey-1080p-en.mp4
+make video LANG=sw    # Kiswahili narration (Zuri, sw-KE)
+```
+
+`scripts/render-film/` does three things:
+1. `narration.py` generates one clip per sentence with Microsoft's Kenyan neural voice (*Asilia*, `en-KE`) through `edge-tts`, the same voice Edge uses for the live film. This sends the narration text to Microsoft's speech service. It then measures each clip to build the film's timeline.
+2. `record.mjs` opens the bare `/film-render` page in headless Chrome with a controlled clock and captures every frame at 1920×1080 and 30 fps, so there are no dropped frames. It also renders the music bed offline.
+3. `mix_and_encode.py` dips the music under the voice, normalises the loudness and encodes an H.264/AAC MP4.
+
+Exporting resets Amina's demo record, just like pressing Demo mode.
 
 After the film, open Amina's profile to show her full timeline, messages and voucher. Then show the USSD simulator, the CHP worklist and the Impact page.
 
@@ -103,10 +119,9 @@ The photos in `frontend/public/media/` come from [Pexels](https://www.pexels.com
 |------|--------|
 | `hero-mother.jpg` | Pexels 8248293 |
 | `hero-mother-baby.jpg` | Pexels 33555006 |
-| `feature-phone.jpg` | Pexels 14127221 |
 | `rural-clinic.jpg` | Pexels 4483669 |
-| `matatu.jpg` | Pexels 30661414 (Nairobi) |
-| `doctor-consult.jpg` | Pexels 6303645 |
+| `boarding.jpg` | Pexels 28873819 |
+| `matatu-kenya.jpg`, `hospital-checkin.jpg` | supplied by the team; confirm usage rights before publishing |
 | `samburu-community.jpg` | Pexels 16863352 (Wamba, Samburu) |
 | `amina.jpg`, `africa-collage.png` | supplied by the team; confirm usage rights before publishing |
 

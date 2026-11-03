@@ -34,9 +34,7 @@ class SynthMusic {
     this.step = 0 // eighth-note counter
   }
 
-  _setup() {
-    const Ctx = window.AudioContext || window.webkitAudioContext
-    const ctx = new Ctx()
+  _setup(ctx = new (window.AudioContext || window.webkitAudioContext)()) {
     this.ctx = ctx
     this.master = ctx.createGain()
     this.master.gain.value = 0
@@ -145,8 +143,8 @@ class SynthMusic {
     src.stop(t + 0.1)
   }
 
-  _schedule() {
-    while (this.nextTime < this.ctx.currentTime + 0.25) {
+  _schedule(horizon = this.ctx.currentTime + 0.25) {
+    while (this.nextTime < horizon) {
       const t = this.nextTime
       const bar = Math.floor(this.step / 8)
       const inBar = this.step % 8
@@ -228,4 +226,38 @@ export async function getMusic() {
   instance = hasFile ? new FileMusic(FILE_URL) : new SynthMusic()
   instance.kind = hasFile ? 'file' : 'synth'
   return instance
+}
+
+/**
+ * Render the synthesised bed offline (no speakers) for the video exporter.
+ * Returns a 16-bit stereo WAV as a Uint8Array; fades in over 2.5 s and out over the last 4 s.
+ */
+export async function renderSynthMusic(seconds, sampleRate = 48000) {
+  const ctx = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate)
+  const m = new SynthMusic()
+  m._setup(ctx)
+  const g = m.master.gain
+  g.setValueAtTime(0, 0)
+  g.linearRampToValueAtTime(LEVEL, 2.5)
+  g.setValueAtTime(LEVEL, Math.max(2.6, seconds - 4))
+  g.linearRampToValueAtTime(0, seconds)
+  m.step = 0
+  m.nextTime = 0.1
+  m._schedule(seconds)
+  const buf = await ctx.startRendering()
+
+  const frames = buf.length
+  const out = new DataView(new ArrayBuffer(44 + frames * 4))
+  const str = (o, t) => [...t].forEach((c, i) => out.setUint8(o + i, c.charCodeAt(0)))
+  str(0, 'RIFF'); out.setUint32(4, 36 + frames * 4, true); str(8, 'WAVEfmt ')
+  out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 2, true)
+  out.setUint32(24, sampleRate, true); out.setUint32(28, sampleRate * 4, true)
+  out.setUint16(32, 4, true); out.setUint16(34, 16, true); str(36, 'data'); out.setUint32(40, frames * 4, true)
+  const L = buf.getChannelData(0)
+  const R = buf.getChannelData(1)
+  for (let i = 0; i < frames; i += 1) {
+    out.setInt16(44 + i * 4, Math.max(-1, Math.min(1, L[i])) * 0x7fff, true)
+    out.setInt16(46 + i * 4, Math.max(-1, Math.min(1, R[i])) * 0x7fff, true)
+  }
+  return new Uint8Array(out.buffer)
 }

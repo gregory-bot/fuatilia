@@ -32,13 +32,13 @@ export function Logo({ light = false }) {
   )
 }
 
-function LangToggle({ className = '' }) {
+function LangToggle({ className = '', onHero = false }) {
   const { lang, setLang } = useI18n()
   return (
-    <div className={`inline-flex rounded-full border border-line bg-ivory p-0.5 text-xs font-semibold ${className}`} role="group" aria-label="Language">
+    <div className={`inline-flex rounded-full p-0.5 text-xs font-semibold ${onHero ? 'border border-white/40' : 'border border-line bg-ivory'} ${className}`} role="group" aria-label="Language">
       {['en', 'sw'].map((l) => (
         <button key={l} onClick={() => setLang(l)} aria-pressed={lang === l}
-          className={`rounded-full px-3 py-1.5 transition ${lang === l ? 'bg-deep text-white' : 'text-ink-muted hover:text-deep'}`}>
+          className={`rounded-full px-3 py-1.5 transition ${lang === l ? (onHero ? 'bg-white text-deep' : 'bg-deep text-white') : (onHero ? 'text-white/85' : 'text-ink-muted hover:text-deep')}`}>
           {l === 'en' ? 'EN' : 'SW'}
         </button>
       ))}
@@ -46,10 +46,12 @@ function LangToggle({ className = '' }) {
   )
 }
 
-const linkClass = ({ isActive }) =>
-  `rounded-full px-3.5 py-2 text-sm font-medium transition ${isActive ? 'bg-mint text-deep' : 'text-ink-muted hover:text-deep'}`
+const linkClass = (onHero) => ({ isActive }) =>
+  `px-3 py-2 text-sm font-semibold transition ${onHero
+    ? (isActive ? 'text-white underline decoration-coral decoration-2 underline-offset-8' : 'text-white/85 hover:text-white')
+    : (isActive ? 'text-deep underline decoration-coral decoration-2 underline-offset-8' : 'text-ink-muted hover:text-deep')}`
 
-function PlatformMenu() {
+function PlatformMenu({ onHero }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -64,7 +66,7 @@ function PlatformMenu() {
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen((v) => !v)} aria-expanded={open}
-        className={`inline-flex items-center gap-1 rounded-full px-3.5 py-2 text-sm font-medium transition ${active ? 'bg-mint text-deep' : 'text-ink-muted hover:text-deep'}`}>
+        className={`inline-flex items-center gap-1 px-3 py-2 text-sm font-semibold transition ${onHero ? 'text-white/85 hover:text-white' : active ? 'text-deep' : 'text-ink-muted hover:text-deep'}`}>
         {t('nav_platform')} <ChevronDown size={15} className={`transition ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
@@ -81,44 +83,57 @@ function PlatformMenu() {
   )
 }
 
+/**
+ * Plain top navigation. On the home page it sits transparently over the hero (white text);
+ * once you scroll, or on any other page, it becomes a solid white bar.
+ */
 function Navbar() {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   const location = useLocation()
+  const isHome = location.pathname === '/'
   useEffect(() => setOpen(false), [location.pathname])
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+  const onHero = isHome && !scrolled && !open
 
   return (
-    <header className="sticky top-0 z-40 px-3 pt-3 sm:px-4">
-      <nav className="container-page flex items-center justify-between gap-3 rounded-[22px] border border-line bg-white/90 py-2.5 shadow-float backdrop-blur" aria-label="Main">
-        <Logo />
+    <header className={`fixed inset-x-0 top-0 z-40 transition-colors duration-300 ${onHero ? 'bg-gradient-to-b from-black/45 to-transparent' : 'border-b border-line bg-white/95 backdrop-blur'}`}>
+      <nav className="container-page flex h-[72px] items-center justify-between gap-3" aria-label="Main">
+        <Logo light={onHero} />
         <div className="hidden items-center gap-1 lg:flex">
-          {PRIMARY.slice(0, 2).map((n) => <NavLink key={n.to} to={n.to} end={n.end} className={linkClass}>{t(n.key)}</NavLink>)}
-          <PlatformMenu />
-          {PRIMARY.slice(2).map((n) => <NavLink key={n.to} to={n.to} className={linkClass}>{t(n.key)}</NavLink>)}
+          {PRIMARY.slice(0, 2).map((n) => <NavLink key={n.to} to={n.to} end={n.end} className={linkClass(onHero)}>{t(n.key)}</NavLink>)}
+          <PlatformMenu onHero={onHero} />
+          {PRIMARY.slice(2).map((n) => <NavLink key={n.to} to={n.to} className={linkClass(onHero)}>{t(n.key)}</NavLink>)}
         </div>
         <div className="flex items-center gap-2">
-          <LangToggle className="hidden sm:inline-flex" />
+          <LangToggle onHero={onHero} className="hidden sm:inline-flex" />
           <Link to="/journey?autoplay=1" className="btn-coral hidden sm:inline-flex"><PlayCircle size={16} />{t('demo_mode')}</Link>
           <button onClick={() => setOpen((v) => !v)} aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open}
-            className="grid h-11 w-11 place-items-center rounded-full bg-coral-50 text-coral-700 lg:hidden">
+            className={`grid h-11 w-11 place-items-center rounded-full lg:hidden ${onHero ? 'bg-white/15 text-white' : 'bg-coral-50 text-coral-700'}`}>
             {open ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </nav>
 
       {open && (
-        <div className="container-page pop mt-2 rounded-[22px] border border-line bg-white p-3 shadow-float lg:hidden">
-          <div className="grid gap-1">
+        <div className="border-t border-line bg-white lg:hidden">
+          <div className="container-page grid gap-1 py-3">
             {[...PRIMARY, ...PLATFORM].map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end}
-                className={({ isActive }) => `rounded-[14px] px-4 py-3 text-sm font-medium ${isActive ? 'bg-mint text-deep' : 'text-ink hover:bg-ivory'}`}>
+                className={({ isActive }) => `px-2 py-3 text-base font-medium ${isActive ? 'text-deep' : 'text-ink'}`}>
                 {t(n.key)}
               </NavLink>
             ))}
-          </div>
-          <div className="mt-3 flex items-center justify-between gap-2 border-t border-line pt-3">
-            <LangToggle />
-            <Link to="/journey?autoplay=1" className="btn-coral"><PlayCircle size={16} />{t('demo_mode')}</Link>
+            <div className="mt-2 flex items-center justify-between gap-2 border-t border-line pt-4">
+              <LangToggle />
+              <Link to="/journey?autoplay=1" className="btn-coral"><PlayCircle size={16} />{t('demo_mode')}</Link>
+            </div>
           </div>
         </div>
       )}
@@ -165,14 +180,14 @@ function Footer() {
 export default function Layout({ children }) {
   const location = useLocation()
   useEffect(() => {
-    if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView()
+    if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView({ behavior: 'instant' })
     else window.scrollTo(0, 0)
   }, [location.pathname, location.hash])
 
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />
-      <main className="flex-1">{children}</main>
+      <main className={`flex-1 ${location.pathname === '/' ? '' : 'pt-[72px]'}`}>{children}</main>
       <Footer />
     </div>
   )

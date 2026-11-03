@@ -5,7 +5,7 @@
 PYTHON ?= python3
 VENV := backend/.venv
 
-.PHONY: install dev api web reset
+.PHONY: install dev api web reset video
 
 install:
 	$(PYTHON) -m venv $(VENV)
@@ -27,3 +27,9 @@ web:
 # Delete the synthetic database and uploads; they are re-seeded on next start.
 reset:
 	rm -f backend/fuatilia.db && rm -rf backend/uploads
+
+# Export the film as a 1080p MP4 into video/ (needs ffmpeg + Google Chrome, and `make dev` running).
+#   make video            English narration
+#   make video LANG=sw    Kiswahili narration
+video:
+	scripts/render-film/render.sh $(or $(LANG_CODE),$(if $(filter sw,$(LANG)),sw,en))

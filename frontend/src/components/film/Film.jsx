@@ -6,6 +6,7 @@ import { fmtDate, kes } from '../../lib/format.js'
 import { useI18n } from '../../lib/i18n.jsx'
 import { getMusic } from '../../lib/music.js'
 import { canSpeak, pickVoice, sentences, speak, stopSpeaking } from '../../lib/narrator.js'
+import DialingPhone from '../DialingPhone.jsx'
 import FeaturePhone from '../FeaturePhone.jsx'
 import { RiskBadge, StatusPill } from '../ui.jsx'
 import { FALLBACK, SCENES } from './scenes.js'
@@ -26,21 +27,8 @@ function Panel({ children, className = '' }) {
   return <div className={`pop border border-white/60 bg-white/95 p-4 shadow-2xl backdrop-blur ${className}`}>{children}</div>
 }
 
-function useSubPhase(active, times) {
-  const [phase, setPhase] = useState(0)
-  useEffect(() => {
-    setPhase(0)
-    if (!active) return undefined
-    const ids = times.map((ms, i) => setTimeout(() => setPhase(i + 1), ms))
-    return () => ids.forEach(clearTimeout)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active])
-  return phase
-}
-
-function Overlay({ scene, data, lang }) {
+function Overlay({ scene, data, lang, playing }) {
   const p = data.patient
-  const ussdPhase = useSubPhase(scene.id === 'ussd' && !!data.ussd, [4500, 7000])
   const waiting = <div className="flex items-center gap-2 text-sm text-ink-muted"><Loader2 size={16} className="animate-spin" />…</div>
 
   if (scene.id === 'screen') {
@@ -63,8 +51,7 @@ function Overlay({ scene, data, lang }) {
   }
   if (scene.id === 'ussd') {
     const u = data.ussd
-    const screen = !u ? '…' : ussdPhase === 0 ? u.menu : ussdPhase === 1 ? <>{u.menu}{'\n'}<span className="caret">1</span></> : u.confirm
-    return <FeaturePhone screen={screen} title="*384*12#" />
+    return u ? <DialingPhone menu={u.menu} confirm={u.confirm} playing={playing} /> : <FeaturePhone screen="…" />
   }
   if (scene.id === 'chp') {
     const visit = p?.events.find((e) => e.kind === 'chp_visit')
@@ -97,14 +84,34 @@ function Overlay({ scene, data, lang }) {
   return null
 }
 
+/** Cuts between photos inside one scene (e.g. Amina on board, then the matatu). */
+function Shots({ shots, active }) {
+  const [shot, setShot] = useState(0)
+  useEffect(() => {
+    setShot(0)
+    if (!active) return undefined
+    let at = 0
+    const ids = shots.slice(0, -1).map((sh, i) => { at += sh.ms; return setTimeout(() => setShot(i + 1), at) })
+    return () => ids.forEach(clearTimeout)
+  }, [active, shots])
+  return shots.map((sh, i) => (
+    <div key={sh.img} className={`absolute inset-0 overflow-hidden transition-opacity duration-700 ${i === shot ? 'opacity-100' : 'opacity-0'}`}>
+        <img key={`${sh.img}-${i === shot && active}`} src={sh.img} alt={i === 0 ? "Amina on board a matatu" : "A matatu on the highway"} className={`h-full w-full object-cover ${i === shot && active ? 'kenburns' : ''}`}
+          style={{ objectPosition: sh.pos, '--kb-from': sh.kb?.from, '--kb-to': sh.kb?.to, '--kb-x1': sh.kb?.x1, '--kb-y1': sh.kb?.y1, '--kb-dur': '8s' }} />
+    </div>
+  ))
+}
+
 /* ---------------- The film ---------------- */
 
 /**
+ * @param renderMode video export: full-frame stage, no controls/audio; timing comes from
+ *                   window.__FILM_TIMELINE__ (pre-measured narration clips), see scripts/render-film/
  * @param autoplay   start immediately (Demo mode button)
  * @param onLog      receives each backend call made by the film: ({ call, result })
  * @param onPatient  receives Amina's live record after each step
  */
-export default function Film({ autoplay = false, onLog, onPatient }) {
+export default function Film({ autoplay = false, onLog, onPatient, renderMode = false }) {
   const { lang } = useI18n()
   const [started, setStarted] = useState(false)
   const [playing, setPlaying] = useState(false)
@@ -114,7 +121,6 @@ export default function Film({ autoplay = false, onLog, onPatient }) {
   const [musicOn, setMusicOn] = useState(true)
   const [voiceOn, setVoiceOn] = useState(true)
   const [subsOn, setSubsOn] = useState(true)
-  const [voiceName, setVoiceName] = useState(null)
   const [offline, setOffline] = useState(false)
   const [playId, setPlayId] = useState(0) // bumps on every (re)start so narration restarts
   const stageRef = useRef(null)
@@ -125,6 +131,7 @@ export default function Film({ autoplay = false, onLog, onPatient }) {
   const run = useRef(0) // invalidates narration continuations on pause/seek
   const patientRef = useRef(null)
   const scene = SCENES[index]
+  const timeline = renderMode ? window.__FILM_TIMELINE__ : null
   const lines = sentences(scene.voice[lang])
 
   const log = (call, result) => onLog?.({ call, result })
@@ -191,6 +198,7 @@ export default function Film({ autoplay = false, onLog, onPatient }) {
         done.current = i
       }
     })
+    if (renderMode) window.__filmChain = () => chain.current // lets the exporter wait for API steps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -207,6 +215,7 @@ export default function Film({ autoplay = false, onLog, onPatient }) {
     setStarted(true)
     setPlaying(true)
     setPlayId((n) => n + 1)
+    if (renderMode) return // the exporter mixes its own soundtrack
     music.current = music.current || await getMusic()
     music.current.setMuted(!musicOn)
     music.current.start()
@@ -214,7 +223,6 @@ export default function Film({ autoplay = false, onLog, onPatient }) {
   }, [musicOn])
 
   useEffect(() => { if (autoplay) start() }, [autoplay, start])
-  useEffect(() => { pickVoice(lang).then((v) => setVoiceName(v ? v.name : null)) }, [lang])
   useEffect(() => { if (started) ensureSteps(index) }, [started, index, ensureSteps])
 
   // Narrate the current scene, then move on. Re-runs on play/seek/language change.
@@ -231,6 +239,18 @@ export default function Film({ autoplay = false, onLog, onPatient }) {
       }, GAP_AFTER_VOICE)
     }
     setLine(0)
+    if (timeline) {
+      // Video export: absolute times (ms) measured from the narration clips, read against the
+      // exporter's clock so scene changes never drift.
+      const tl = timeline.scenes[index]
+      const now = window.__clockNow ? window.__clockNow() : 0
+      const timers = tl.lines.map((ms, i) => setTimeout(() => setLine(i), Math.max(0, ms - now)))
+      timers.push(setTimeout(() => {
+        if (index < SCENES.length - 1) setIndex(index + 1)
+        else window.__FILM_DONE__ = true
+      }, Math.max(0, tl.end - now)))
+      return () => timers.forEach(clearTimeout)
+    }
     if (voiceOn && canSpeak()) {
       pickVoice(lang).then((voice) => {
         if (token !== run.current) return
@@ -280,42 +300,37 @@ export default function Film({ autoplay = false, onLog, onPatient }) {
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  const overlay = started && <Overlay key={scene.id} scene={scene} data={data} lang={lang} />
-  const kb = scene.kb || {}
+  const overlay = started && <Overlay key={scene.id} scene={scene} data={data} lang={lang} playing={playing} />
   const isEnd = scene.id === 'end'
 
   return (
     <div>
-      <div ref={stageRef} className={`relative aspect-video w-full overflow-hidden rounded-[24px] bg-[#0b1f22] shadow-float ${playing ? '' : 'film-paused'}`}>
+      <div ref={stageRef} className={`${renderMode ? 'fixed inset-0' : 'relative aspect-video w-full rounded-[24px] shadow-float'} overflow-hidden bg-[#0b1f22] ${playing || renderMode ? '' : 'film-paused'}`}>
         {/* Photo layer */}
         {SCENES.map((s, i) => (
           <div key={s.id} className={`absolute inset-0 transition-opacity duration-[1400ms] ${(started ? i === index : i === 0) ? 'opacity-100' : 'opacity-0'}`} aria-hidden={i !== index}>
-            {s.layout === 'portrait' ? (
+            {s.layout === 'portrait' || s.layout === 'phone' ? (
               <>
                 <img src={s.img} alt="" className="absolute inset-0 h-full w-full scale-125 object-cover blur-2xl brightness-75" />
                 <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-black/30" />
                 <img key={`${s.id}-${started && i === index}`} src={s.img} alt="Amina, a mother from Samburu County"
-                  className="kenburns absolute left-[8%] top-[8%] h-[84%] w-auto max-w-[45%] object-cover shadow-2xl"
+                  className={`kenburns absolute left-[8%] top-[8%] h-[84%] w-auto max-w-[45%] object-cover shadow-2xl ${s.layout === 'phone' ? 'brightness-90' : ''}`}
                   style={{ '--kb-from': 1, '--kb-to': 1.05, '--kb-dur': '16s' }} />
               </>
+            ) : s.shots ? (
+              <Shots shots={s.shots} active={started && i === index} />
             ) : (
               <img key={`${s.id}-${started && i === index}`} src={s.img} alt="" className="kenburns absolute inset-0 h-full w-full object-cover"
-                style={{ '--kb-from': s.kb?.from, '--kb-to': s.kb?.to, '--kb-x0': s.kb?.x0, '--kb-y0': s.kb?.y0, '--kb-x1': s.kb?.x1, '--kb-y1': s.kb?.y1, '--kb-dur': '16s' }} />
+                style={{ objectPosition: s.pos, '--kb-from': s.kb?.from, '--kb-to': s.kb?.to, '--kb-x0': s.kb?.x0, '--kb-y0': s.kb?.y0, '--kb-x1': s.kb?.x1, '--kb-y1': s.kb?.y1, '--kb-dur': '16s' }} />
             )}
           </div>
         ))}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-black/30" />
 
-        {/* Brand + scene label */}
-        {started && (
-          <div className="absolute inset-x-4 top-4 flex items-start justify-between gap-3 sm:inset-x-6 sm:top-6">
-            <span key={`p${index}-${lang}`} className="fade-up rounded-full bg-black/45 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur sm:text-sm">
-              {index + 1}/{SCENES.length} · {scene.place[lang]}
-            </span>
-            <span className="hidden text-xs font-bold uppercase tracking-[0.25em] text-white/80 sm:block">Fuatilia</span>
-          </div>
-        )}
-        {overlay && !isEnd && <div className="absolute right-5 top-14 hidden origin-top-right scale-[.72] lg:block 2xl:scale-90">{overlay}</div>}
+        {started && <span className="absolute right-6 top-5 hidden text-xs font-bold uppercase tracking-[0.25em] text-white/80 sm:block">Fuatilia</span>}
+        {overlay && !isEnd && (scene.layout === 'phone'
+          ? <div className="absolute right-[14%] top-1/2 hidden -translate-y-1/2 scale-[.62] sm:block lg:scale-[.88] 2xl:scale-100">{overlay}</div>
+          : <div className={`absolute top-12 hidden scale-[.72] lg:block 2xl:scale-90 ${scene.overlayLeft ? 'left-5 origin-top-left' : 'right-5 origin-top-right'}`}>{overlay}</div>)}
 
         {/* Closing card */}
         {started && isEnd && (
@@ -324,10 +339,10 @@ export default function Film({ autoplay = false, onLog, onPatient }) {
               <p className="text-base font-medium text-white/85 sm:text-2xl">“{lines[0]}</p>
               <p className="mt-2 text-2xl font-bold text-white sm:text-5xl">{lines[1]}”</p>
               <p className="mt-4 text-sm text-white/85 sm:text-lg">{lines[2]}</p>
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
+              {!renderMode && <div className="mt-6 flex flex-wrap justify-center gap-2">
                 {data.patient?.id && <Link to={`/patients/${data.patient.id}`} className="btn-coral">{lang === 'sw' ? 'Fungua wasifu wa Amina' : "Open Amina's record"}</Link>}
                 <button className="btn-light" onClick={start}><RotateCcw size={16} />{lang === 'sw' ? 'Tazama tena' : 'Replay'}</button>
-              </div>
+              </div>}
             </div>
           </div>
         )}
@@ -355,9 +370,10 @@ export default function Film({ autoplay = false, onLog, onPatient }) {
         )}
       </div>
 
+      {renderMode ? null : <>
       {/* On phones, subtitles and screens sit below the picture so it stays visible. */}
       {started && subsOn && !isEnd && <p key={`m${index}-${line}-${lang}`} className="fade-up mt-3 border-l-4 border-coral bg-white px-3 py-2 text-sm text-deep sm:hidden">{lines[line]}</p>}
-      {overlay && !isEnd && <div className="mt-4 flex justify-center lg:hidden">{overlay}</div>}
+      {overlay && !isEnd && <div className={`mt-4 flex justify-center ${scene.layout === 'phone' ? 'sm:hidden' : 'lg:hidden'}`}>{overlay}</div>}
 
       {/* Controls */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -374,11 +390,8 @@ export default function Film({ autoplay = false, onLog, onPatient }) {
         <button className={`btn-ghost h-11 w-11 p-0 ${subsOn ? '' : 'text-ink-faint'}`} onClick={() => setSubsOn((v) => !v)} aria-pressed={subsOn} aria-label="Subtitles" title="Subtitles"><MessageSquareText size={18} /></button>
         <button className="btn-ghost h-11 w-11 p-0" onClick={() => stageRef.current?.requestFullscreen?.()} aria-label="Fullscreen" title="Fullscreen"><Expand size={18} /></button>
       </div>
-      <p className="mt-2 text-xs text-ink-faint">
-        {lang === 'sw' ? 'Msimulizi' : 'Narrator'}: {voiceName || (lang === 'sw' ? 'haipatikani kwenye kivinjari hiki' : 'not available in this browser')}
-        {' · '}{lang === 'sw' ? 'Badilisha lugha juu kwa Kiswahili/English' : 'Switch EN/SW at the top for Kiswahili narration'}
-        {offline && ` · ${lang === 'sw' ? 'API haipatikani: data ya mfano' : 'API offline: built-in demo data'}`}
-      </p>
+      {offline && <p className="mt-2 text-xs text-ink-faint">{lang === 'sw' ? 'API haipatikani: data ya mfano' : 'API offline: playing with built-in demo data'}</p>}
+      </>}
     </div>
   )
 }

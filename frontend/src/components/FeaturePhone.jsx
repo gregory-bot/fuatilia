@@ -19,15 +19,25 @@ export default function FeaturePhone({ screen, title = 'Safaricom', footer, keyp
 
 export const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#']
 
-export function Keypad({ onKey, disabled }) {
+/** Keypad. `pressed` briefly shows a fingertip pressing that key (used by the auto-dial demo). */
+export function Keypad({ onKey, disabled, pressed }) {
   return (
     <div className="mt-3 grid grid-cols-3 gap-1.5">
       {KEYS.map((k) => (
-        <button key={k} type="button" disabled={disabled} onClick={() => onKey(k)}
-          className="rounded-lg bg-[#3A4547] py-1.5 text-sm font-semibold text-white shadow-inner hover:bg-[#4A5759] active:translate-y-px disabled:opacity-40">
+        <button key={k} type="button" disabled={disabled} onClick={() => onKey?.(k)}
+          className={`relative rounded-lg py-1.5 text-sm font-semibold text-white shadow-inner transition duration-150 hover:bg-[#4A5759] disabled:opacity-40 ${pressed === k ? 'translate-y-px scale-95 bg-[#5d6b6d]' : 'bg-[#3A4547]'}`}>
           {k}
+          {pressed === k && <Fingertip />}
         </button>
       ))}
     </div>
+  )
+}
+
+/** A soft, translucent fingertip over a key while it is pressed. */
+export function Fingertip() {
+  return (
+    <span aria-hidden className="pop pointer-events-none absolute left-1/2 top-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full"
+      style={{ background: 'radial-gradient(circle at 40% 35%, rgba(150,100,75,.85), rgba(95,60,42,.75) 60%, rgba(60,38,26,.0) 72%)', boxShadow: '0 4px 10px rgba(0,0,0,.35)' }} />
   )
 }

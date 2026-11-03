@@ -20,8 +20,8 @@ export const SCENES = [
     },
   },
   {
-    id: 'sms', img: '/media/feature-phone.jpg', step: 'sms',
-    kb: { from: 1.1, to: 1.22, x0: '2%', x1: '-1%' },
+    // Phone scenes: the Safaricom handset is the picture, over a softened photo of Amina.
+    id: 'sms', img: '/media/amina.jpg', layout: 'phone', step: 'sms',
     place: { en: 'Home, that afternoon', sw: 'Nyumbani, mchana huo' },
     voice: {
       en: 'Minutes later, her phone buzzes. A message in Kiswahili tells her where and when to go. It never says the word cancer, because in many homes, phones are shared.',
@@ -29,8 +29,7 @@ export const SCENES = [
     },
   },
   {
-    id: 'ussd', img: '/media/feature-phone.jpg', step: 'ussd',
-    kb: { from: 1.25, to: 1.12, y0: '-2%', y1: '1%' },
+    id: 'ussd', img: '/media/amina.jpg', layout: 'phone', step: 'ussd',
     place: { en: 'Dialling *384*12#', sw: 'Anapiga *384*12#' },
     voice: {
       en: 'She has no smartphone and no data bundle. She simply dials star, three, eight, four, star, twelve, hash, and confirms her visit in two key presses.',
@@ -47,8 +46,12 @@ export const SCENES = [
     },
   },
   {
-    id: 'travel', img: '/media/matatu.jpg',
-    kb: { from: 1.06, to: 1.2, x0: '-2%', x1: '3%' },
+    // Two shots: Amina on board, then the matatu on the highway.
+    id: 'travel', img: '/media/matatu-kenya.jpg',
+    shots: [
+      { img: '/media/boarding.jpg', ms: 3200, pos: 'center 62%', kb: { from: 1.08, to: 1.16, y1: '1%' } },
+      { img: '/media/matatu-kenya.jpg', pos: 'center 45%', kb: { from: 1.02, to: 1.1, x1: '-2%' } },
+    ],
     place: { en: 'The road to Maralal · 68 km', sw: 'Barabara ya Maralal · km 68' },
     voice: {
       en: 'On the day, Amina takes a matatu to Maralal. For many women, the fare alone is the reason they never arrive.',
@@ -56,12 +59,13 @@ export const SCENES = [
     },
   },
   {
-    id: 'checkin', img: '/media/doctor-consult.jpg', step: 'checkin',
-    kb: { from: 1.05, to: 1.16, y1: '-2%' },
+    // She has arrived: a health worker checks her in. M-Pesa phone sits top-left, clear of her.
+    id: 'checkin', img: '/media/hospital-checkin.jpg', step: 'checkin', overlayLeft: true, pos: 'center 22%',
+    kb: { from: 1.03, to: 1.12, x1: '-2%' },
     place: { en: 'Samburu County Referral Hospital', sw: 'Hospitali ya Rufaa ya Kaunti ya Samburu' },
     voice: {
-      en: 'The moment she checks in, her fare is refunded through M-Pesa. No forms. No waiting.',
-      sw: 'Mara tu anapofika na kusajiliwa, nauli yake inarudishwa kupitia M-Pesa. Hakuna fomu. Hakuna kusubiri.',
+      en: 'Amina arrives at the hospital. The moment she checks in, her fare is refunded through M-Pesa. No waiting, and no claim to make.',
+      sw: 'Amina anafika hospitalini. Mara tu anaposajiliwa, nauli yake inarudishwa kupitia M-Pesa. Hakuna kusubiri, wala madai ya kujaza.',
     },
   },
   {
