@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { ChevronDown, Menu, PlayCircle, ShieldCheck, X } from 'lucide-react'
 import { useI18n } from '../lib/i18n.jsx'
+import { isDemoMode } from '../lib/api.js'
 
 // Platform tools live under one "Platform" menu so the bar stays calm.
 const PLATFORM = [
@@ -170,7 +171,7 @@ function Footer() {
       <div className="border-t border-white/10">
         <div className="container-page flex flex-col gap-2 py-5 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} Fuatilia · {t('footer_rights')}</p>
-          <p>{t('footer_photos')}</p>
+          <p>{isDemoMode ? `${t('footer_demo')} · ` : ''}{t('footer_photos')}</p>
         </div>
       </div>
     </footer>

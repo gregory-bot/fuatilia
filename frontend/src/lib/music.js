@@ -9,7 +9,9 @@
  * Both variants share one interface: start(), pause(), resume(), stop(), duck(on), setMuted(m).
  */
 
-const FILE_URL = '/media/music.mp3'
+import { asset } from './asset.js'
+
+const FILE_URL = asset('/media/music.mp3')
 const BPM = 96
 const BEAT = 60 / BPM
 const LEVEL = 0.32 // master level

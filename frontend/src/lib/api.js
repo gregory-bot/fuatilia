@@ -1,4 +1,7 @@
 // Thin fetch wrapper. Vite proxies /api to FastAPI (see vite.config.js).
+// The static GitHub Pages build (VITE_DEMO_MODE=1) uses the in-browser demo API instead.
+import { demoApi } from './demoApi.js'
+
 async function request(path, { method = 'GET', body, form } = {}) {
   const init = { method, headers: {} }
   if (form) init.body = form
@@ -21,7 +24,7 @@ const qs = (params) => {
   return s ? `?${s}` : ''
 }
 
-export const api = {
+const liveApi = {
   meta: () => request('/meta'),
   metrics: () => request('/metrics'),
   impact: () => request('/impact'),
@@ -57,3 +60,6 @@ export const api = {
   resetAmina: () => request('/demo/amina/reset', { method: 'POST' }),
   amina: () => request('/demo/amina'),
 }
+
+export const isDemoMode = import.meta.env.VITE_DEMO_MODE === '1'
+export const api = isDemoMode ? demoApi : liveApi

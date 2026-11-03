@@ -5,7 +5,7 @@
 PYTHON ?= python3
 VENV := backend/.venv
 
-.PHONY: install dev api web reset video
+.PHONY: install dev api web reset video demo-data
 
 install:
 	$(PYTHON) -m venv $(VENV)
@@ -33,3 +33,7 @@ reset:
 #   make video LANG=sw    Kiswahili narration
 video:
 	scripts/render-film/render.sh $(or $(LANG_CODE),$(if $(filter sw,$(LANG)),sw,en))
+
+# Refresh the synthetic snapshot used by the static GitHub Pages build.
+demo-data:
+	backend/.venv/bin/python scripts/export_demo.py

@@ -50,6 +50,24 @@ To try it on a phone, connect to the same Wi-Fi and open `http://<your-laptop-ip
 
 ---
 
+## Live demo on GitHub Pages
+
+The site is published at **https://gregory-bot.github.io/fuatilia/** by `.github/workflows/deploy-pages.yml` on every push to `main`.
+
+GitHub Pages only serves static files, so the published build runs in **browser demo mode** (`VITE_DEMO_MODE=1`):
+
+- `scripts/export_demo.py` seeds the synthetic dataset and trains the model with the same code as the API, then writes `frontend/public/demo/snapshot.json`. This file holds the patients, the model's coefficients, the SMS templates and the impact figures. The synthetic phone numbers are replaced with an obviously fake block (`+25470001xxxx`).
+- `frontend/src/lib/demoApi.js` mirrors the FastAPI endpoints in the browser: risk scoring, the pathway rules, SMS, USSD, CHP visits, M-Pesa vouchers, pathology triage and metrics.
+- Every page works, Demo mode included. Changes stay in that browser tab and reset on reload.
+
+After changing the seed, the model or the SMS templates, refresh the snapshot and commit it:
+
+```bash
+backend/.venv/bin/python scripts/export_demo.py
+```
+
+Run locally with `make dev` as before: the local build talks to the real FastAPI backend.
+
 ## The demo: Amina's journey
 
 **Demo mode** plays a narrated photo film of about two minutes, also embedded on the home page. It follows Amina, 34, from Lodung'okwe in Samburu County. Her nearest treatment hospital is 68 km away in Maralal.

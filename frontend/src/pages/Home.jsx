@@ -6,6 +6,7 @@ import { kes } from '../lib/format.js'
 import { useI18n } from '../lib/i18n.jsx'
 import Film from '../components/film/Film.jsx'
 import DialingPhone from '../components/DialingPhone.jsx'
+import { asset } from '../lib/asset.js'
 
 const SLIDE_MS = 12000
 
@@ -132,8 +133,8 @@ const COPY = {
 }
 
 const HERO_SLIDES = [
-  { src: '/media/hero-mother.jpg', pos: 'center 30%', flip: true },
-  { src: '/media/hero-mother-baby.jpg', pos: 'center 22%', flip: true },
+  { src: asset('/media/hero-mother.jpg'), pos: 'center 30%', flip: true },
+  { src: asset('/media/hero-mother-baby.jpg'), pos: 'center 22%', flip: true },
 ]
 
 const FADE_MS = 2600
@@ -251,7 +252,7 @@ export default function Home() {
           </div>
         </div>
         <figure className="relative">
-          <img src="/media/rural-clinic.jpg" alt="Women waiting at a rural health facility while a health worker checks a patient" loading="lazy" className="aspect-[4/5] w-full rounded-[28px] object-cover" />
+          <img src={asset('/media/rural-clinic.jpg')} alt="Women waiting at a rural health facility while a health worker checks a patient" loading="lazy" className="aspect-[4/5] w-full rounded-[28px] object-cover" />
           <figcaption className="absolute bottom-4 left-4 right-4 flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-sm text-deep shadow-float">
             <MapPin size={16} className="text-coral" />{lang === 'sw' ? 'Umbali, gharama na muda ndivyo vikwazo vikuu' : 'Distance, cost and time are the real barriers'}
           </figcaption>
@@ -278,7 +279,7 @@ export default function Home() {
 
           <div id="how" className="mt-20 grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
             <div className="relative flex min-h-[560px] items-center justify-center overflow-hidden rounded-[28px] bg-deep py-10">
-              <img src="/media/amina.jpg" alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-xl" />
+              <img src={asset('/media/amina.jpg')} alt="" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-xl" />
               <div className="absolute inset-0 bg-gradient-to-t from-deep via-deep/30 to-transparent" />
               <div className="relative lg:scale-110"><DialingPhone loop /></div>
               <p className="absolute bottom-5 left-0 right-0 text-center text-sm font-medium text-white/90">{lang === 'sw' ? 'Anapiga *384*12# na kuthibitisha miadi yake' : 'She dials *384*12# and confirms her visit'}</p>
@@ -317,7 +318,7 @@ export default function Home() {
       {/* About */}
       <section id="about" className="container-page mt-24 grid gap-12 lg:grid-cols-2 lg:items-center">
         <div className="order-2 lg:order-1">
-          <img src="/media/africa-collage.png" alt="Map of Africa made of photographs of African families, health workers and children" loading="lazy" className="mx-auto w-full max-w-md mix-blend-multiply" />
+          <img src={asset('/media/africa-collage.png')} alt="Map of Africa made of photographs of African families, health workers and children" loading="lazy" className="mx-auto w-full max-w-md mix-blend-multiply" />
         </div>
         <div className="order-1 lg:order-2">
           <SectionHead eyebrow={c.aboutEyebrow} title={c.aboutTitle} />
@@ -325,7 +326,7 @@ export default function Home() {
           <ul className="mt-6 grid gap-2">
             {c.aboutPoints.map((p) => <li key={p} className="flex items-center gap-3 border border-line bg-white px-4 py-3 text-sm font-medium text-deep"><BadgeCheck size={18} className="shrink-0 text-teal" />{p}</li>)}
           </ul>
-          <img src="/media/samburu-community.jpg" alt="Samburu women and children in traditional beadwork" loading="lazy" className="mt-6 aspect-[16/7] w-full rounded-[28px] object-cover object-[center_38%]" />
+          <img src={asset('/media/samburu-community.jpg')} alt="Samburu women and children in traditional beadwork" loading="lazy" className="mt-6 aspect-[16/7] w-full rounded-[28px] object-cover object-[center_38%]" />
         </div>
       </section>
 

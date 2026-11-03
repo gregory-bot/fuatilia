@@ -9,6 +9,7 @@ from pathlib import Path
 
 work, lang, out = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
 clips = json.loads((work / f"clips_{lang}.json").read_text())
+total_s = json.loads((work / f"timeline_{lang}.json").read_text())["total_ms"] / 1000
 
 inputs = ["-i", str(work / f"music_{lang}.wav")]
 chains, labels = [], []
@@ -17,7 +18,9 @@ for n, c in enumerate(clips, start=1):
     ms = c["start_ms"]
     chains.append(f"[{n}:a]aresample=48000,aformat=channel_layouts=stereo,adelay={ms}|{ms}[v{n}]")
     labels.append(f"[v{n}]")
-graph = ";".join(chains) + ";" + "".join(labels) + f"amix=inputs={len(labels)}:normalize=0,volume=1.6[voice];" \
+# The voice is padded to the full film length: the ducking filter stops when its sidechain
+# ends, which would otherwise cut the music (and the closing card) short.
+graph = ";".join(chains) + ";" + "".join(labels) + f"amix=inputs={len(labels)}:normalize=0,volume=1.6,apad=whole_dur={total_s}[voice];" \
     "[voice]asplit=2[vk][vm];" \
     "[0:a]aformat=channel_layouts=stereo[mus];" \
     "[mus][vk]sidechaincompress=threshold=0.015:ratio=8:attack=60:release=900[ducked];" \
